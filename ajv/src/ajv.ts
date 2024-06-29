@@ -9,9 +9,15 @@ const parseErrorSchema = (
   validateAllFieldCriteria: boolean,
 ) => {
   // Ajv will return empty instancePath when require error
-  ajvErrors.forEach((error) => {
-    if (error.keyword === 'required') {
-      error.instancePath += '/' + error.params.missingProperty;
+  ajvErrors.forEach(error => {
+    // @ts-ignore
+    if (error.keyword === 'errorMessage') {
+      // @ts-ignore
+      const subError = error.params.errors[0]
+      if (subError.keyword === 'required') {
+        // @ts-ignore
+        error.instancePath += '/' + subError.params.missingProperty
+      }
     }
   });
 
@@ -47,42 +53,42 @@ const parseErrorSchema = (
 
 export const ajvResolver: Resolver =
   (schema, schemaOptions, resolverOptions = {}) =>
-  async (values, _, options) => {
-    const ajv = new Ajv(
-      Object.assign(
-        {},
-        {
-          allErrors: true,
-          validateSchema: true,
-        },
-        schemaOptions,
-      ),
-    );
+    async (values, _, options) => {
+      const ajv = new Ajv(
+        Object.assign(
+          {},
+          {
+            allErrors: true,
+            validateSchema: true,
+          },
+          schemaOptions,
+        ),
+      );
 
-    ajvErrors(ajv);
+      ajvErrors(ajv);
 
-    const validate = ajv.compile(
-      Object.assign(
-        { $async: resolverOptions && resolverOptions.mode === 'async' },
-        schema,
-      ),
-    );
+      const validate = ajv.compile(
+        Object.assign(
+          { $async: resolverOptions && resolverOptions.mode === 'async' },
+          schema,
+        ),
+      );
 
-    const valid = validate(values);
+      const valid = validate(values);
 
-    options.shouldUseNativeValidation && validateFieldsNatively({}, options);
+      options.shouldUseNativeValidation && validateFieldsNatively({}, options);
 
-    return valid
-      ? { values, errors: {} }
-      : {
+      return valid
+        ? { values, errors: {} }
+        : {
           values: {},
           errors: toNestErrors(
             parseErrorSchema(
               validate.errors as DefinedError[],
               !options.shouldUseNativeValidation &&
-                options.criteriaMode === 'all',
+              options.criteriaMode === 'all',
             ),
             options,
           ),
         };
-  };
+    };
